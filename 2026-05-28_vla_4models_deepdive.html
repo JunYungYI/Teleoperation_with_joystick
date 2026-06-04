@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>VLA 집중 분석 — 작동 원리 · 4개 모델 · 기초 실습 (2026-05-28)</title>
+<style>
+  body { font-family: -apple-system, "Segoe UI", "Noto Sans KR", sans-serif;
+         max-width: 1000px; margin: 24px auto; padding: 0 24px; line-height: 1.6; color: #222; }
+  h1 { border-bottom: 3px solid #1a5fb4; padding-bottom: 8px; margin-bottom: 4px; font-size: 1.55em; }
+  .meta { color: #666; font-size: 0.9em; margin-bottom: 16px; }
+  h2 { margin-top: 34px; border-left: 4px solid #1a5fb4; padding-left: 10px; font-size: 1.25em;
+       background: #f7f9fc; padding-top: 6px; padding-bottom: 6px; }
+  h3 { color: #1a5fb4; margin-top: 20px; font-size: 1.05em; }
+  .part-label { color: #888; font-size: 0.78em; font-weight: 600; letter-spacing: 0.5px; }
+
+  /* 박스류 */
+  .why { background: #eaf2fb; border-left: 4px solid #1a5fb4; padding: 12px 16px; margin: 14px 0; }
+  .summary { background: #fff7d6; border: 2px solid #d4a017; padding: 14px 18px;
+             border-radius: 6px; margin: 16px 0; }
+  .summary h2 { margin-top: 0; border-left: none; background: none; color: #8a6914; padding: 0; }
+  .analogy { background: #f3f0fa; border-left: 4px solid #8e6fd4; padding: 8px 14px; margin: 8px 0;
+             font-size: 0.94em; }
+  .analogy b { color: #6a4bbc; }
+
+  /* 흐름도 */
+  .flow { display: flex; align-items: stretch; justify-content: center; gap: 6px;
+          flex-wrap: wrap; margin: 16px 0; }
+  .flow .node { background: #eaf2fb; border: 2px solid #1a5fb4; border-radius: 8px;
+                padding: 10px 12px; text-align: center; min-width: 110px; display: flex;
+                flex-direction: column; justify-content: center; font-size: 0.9em; }
+  .flow .node.in { background: #e7f0ff; }
+  .flow .node.block { background: #fff7d6; border-color: #d4a017; }
+  .flow .node.out { background: #e7f5ec; border-color: #28a745; }
+  .flow .node .t { font-weight: 700; display: block; margin-bottom: 2px; }
+  .flow .node .s { font-size: 0.82em; color: #555; }
+  .flow .arr { align-self: center; font-size: 1.5em; color: #888; }
+
+  /* 용어 카드 그리드 */
+  .terms { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 10px; margin: 12px 0; }
+  .term { border: 1px solid #ddd; border-left: 4px solid #1a5fb4; border-radius: 6px;
+          padding: 10px 14px; background: #fafbfc; }
+  .term .name { font-weight: 700; color: #1a5fb4; }
+  .term .def { font-size: 0.92em; margin: 4px 0; }
+  .term .fn { font-size: 0.88em; color: #555; }
+  .term .fn b { color: #c0392b; }
+
+  /* 표 */
+  table { border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 0.9em; }
+  th, td { border: 1px solid #ccc; padding: 7px 9px; text-align: left; vertical-align: top; }
+  th { background: #f0f4fa; }
+  td.center { text-align: center; }
+  .ok { color: #28a745; font-weight: 600; }
+  .warn { color: #d4a017; font-weight: 600; }
+  .bad { color: #c0392b; font-weight: 600; }
+
+  /* 모델 카드 */
+  .model { border: 1px solid #ddd; border-left: 5px solid #1a5fb4; border-radius: 6px;
+           padding: 14px 18px; margin: 16px 0; background: #fafbfc; }
+  .model h3 { margin-top: 0; }
+  .model .sub { color: #666; font-size: 0.88em; margin: -4px 0 8px 0; }
+  .model table { font-size: 0.88em; }
+  .model table td:first-child { background: #f8f9fa; width: 130px; font-weight: 600; color: #444; }
+
+  /* 실습 단계 */
+  .step { border: 1px solid #ddd; border-radius: 6px; padding: 12px 16px; margin: 10px 0; background: #fafbfc; }
+  .step .num { display: inline-block; background: #1a5fb4; color: white; border-radius: 50%;
+               width: 22px; height: 22px; text-align: center; line-height: 22px; font-size: 0.85em;
+               font-weight: 700; margin-right: 6px; }
+  code { background: #f3f3f3; padding: 1px 5px; border-radius: 3px;
+         font-family: "JetBrains Mono", "Consolas", monospace; font-size: 0.86em; }
+  pre { background: #2b2b2b; color: #e6e6e6; padding: 10px 14px; border-radius: 6px;
+        overflow-x: auto; font-size: 0.84em; line-height: 1.45; }
+  pre code { background: none; color: inherit; padding: 0; }
+  a { color: #1a5fb4; }
+  ul, ol { margin: 6px 0; padding-left: 22px; }
+  li { margin: 3px 0; }
+  .appendix-divider { margin: 36px 0 0 0; border-top: 2px dashed #ccc; padding-top: 10px;
+                      color: #888; font-size: 0.85em; text-align: center; }
+  .footnote { font-size: 0.82em; color: #888; margin-top: 24px; border-top: 1px solid #ddd; padding-top: 8px; }
+  .tag { display: inline-block; font-size: 0.75em; padding: 1px 7px; border-radius: 10px;
+         color: white; font-weight: 600; }
+  .tag.open { background: #28a745; } .tag.api { background: #c0392b; } .tag.partial { background: #d4a017; }
+</style>
+</head>
+<body>
+
+<h1>VLA 집중 분석 — 작동 원리 · 4개 모델 · 기초 실습</h1>
+<div class="meta">2026-05-28 작성 · 다음 회의 준비 자료 · 대상: 비전문가 학습조직 · 0주차 피드백 반영판</div>
+
+<!-- ═══════════════════════════════════ -->
+<div class="summary">
+<h2>★ 이 자료가 답하려는 것</h2>
+<p>지난 0주차 자료(7개 모델 비교)를 보고 <em>"용어도 작동 원리도 모르겠고 질문만 많아진다"</em>는 피드백이 있었습니다. 그래서 이번엔 <strong>"고르는 것"보다 "이해하는 것"을 먼저</strong> 둡니다. 순서대로 읽으면 다음 5개 질문에 답할 수 있도록 구성했습니다.</p>
+<ol>
+  <li>VLA 에 <strong>무엇이 입력</strong>되어 <strong>어떻게 로봇 행동으로 출력</strong>되는가?</li>
+  <li>VLA 모델은 <strong>어떤 부품(구성단위)</strong>으로 되어 있는가?</li>
+  <li>우리가 데이터를 추가 학습(fine-tune)하면 <strong>그 부품 중 어디가 바뀌는가</strong>?</li>
+  <li>대표 4개 모델(OpenVLA · π0 · Gemini Robotics · GR00T)은 <strong>무엇이 어떻게 다른가</strong>, 그리고 <strong>오픈소스인가</strong>?</li>
+  <li><strong>우리 PC(24GB)</strong>에서 무엇을 실제로 <strong>실습</strong>할 수 있는가?</li>
+</ol>
+<p style="margin-bottom:0;">중간중간 나오는 용어(VRAM, LoRA, diffusion 등)는 <strong>3부 용어 사전</strong>에서 기능 중심으로 풀어 설명합니다.</p>
+</div>
+
+<!-- ═══════════════════════════════════ -->
+<h2><span class="part-label">1부 · 개념</span><br>VLA 란 무엇인가 — 입력에서 행동까지</h2>
+
+<p><strong>VLA = Vision-Language-Action</strong> (시각–언어–행동). 카메라가 본 장면(Vision)과 사람이 준 말(Language)을 받아서, 로봇이 해야 할 움직임(Action)을 <strong>하나의 AI 모델</strong>이 직접 만들어냅니다.</p>
+
+<div class="analogy"><b>비유</b> — 사람이 "컵을 집어 줘"라는 말을 듣고, 눈으로 컵을 보고, 손을 뻗어 집는 그 과정 전체를, 따로 노는 프로그램 여러 개가 아니라 <b>하나의 뇌</b>가 처리한다고 보면 됩니다.</p></div>
+
+<div class="flow">
+  <div class="node in"><span class="t">📷 카메라</span><span class="s">로봇이 보는 장면</span></div>
+  <div class="arr">+</div>
+  <div class="node in"><span class="t">💬 명령</span><span class="s">"컵을 집어 줘"</span></div>
+  <div class="arr">→</div>
+  <div class="node block"><span class="t">🧠 VLA 모델</span><span class="s">보고·이해하고·계획</span></div>
+  <div class="arr">→</div>
+  <div class="node out"><span class="t">🦾 행동</span><span class="s">관절 각도·그리퍼</span></div>
+</div>
+
+<div class="why">
+<strong>기존 로봇과 무엇이 다른가</strong> — 예전에는 "물체 인식 프로그램", "명령 해석 프로그램", "동작 계획 프로그램"이 <strong>따로</strong> 있어서, 상황이 조금만 바뀌어도 연결이 끊겼습니다. VLA 는 이 셋을 <strong>한 모델 안</strong>에 합쳐, 사전학습으로 얻은 "세상에 대한 일반 지식"을 활용해 처음 보는 물건·명령에도 더 유연하게 대응합니다.
+</div>
+
+<!-- ═══════════════════════════════════ -->
+<h2><span class="part-label">2부 · 구조</span><br>VLA 모델의 구성단위 — 3개의 부품</h2>
+
+<p>거의 모든 VLA 는 아래 <strong>3개의 부품(블록)</strong>이 이어진 형태입니다. 이 구조를 알면 "fine-tune 할 때 어디가 바뀌는가"(4부)가 자연스럽게 이해됩니다.</p>
+
+<div class="flow">
+  <div class="node in"><span class="t">입력</span><span class="s">이미지 + 명령<br>(+ 관절 상태)</span></div>
+  <div class="arr">→</div>
+  <div class="node block"><span class="t">① 비전 인코더</span><span class="s">이미지 → 특징</span></div>
+  <div class="arr">→</div>
+  <div class="node block"><span class="t">② 언어모델 백본</span><span class="s">보고+듣고 → 의도</span></div>
+  <div class="arr">→</div>
+  <div class="node block"><span class="t">③ 액션 헤드</span><span class="s">의도 → 모터 신호</span></div>
+  <div class="arr">→</div>
+  <div class="node out"><span class="t">출력</span><span class="s">행동(action)</span></div>
+</div>
+
+<table>
+<thead><tr><th>부품</th><th>하는 일</th><th>비유</th><th>대표 기술</th></tr></thead>
+<tbody>
+<tr>
+  <td><strong>① 비전 인코더</strong><br>(Vision Encoder)</td>
+  <td>카메라 픽셀을 AI가 다룰 수 있는 "특징(feature)" 으로 변환. "어디에 무엇이 있다"를 정리</td>
+  <td>눈 → 시각 피질</td>
+  <td>SigLIP, DINOv2, ViT</td>
+</tr>
+<tr>
+  <td><strong>② 언어모델 백본</strong><br>(VLM / LLM Backbone)</td>
+  <td>명령의 뜻을 이해하고, 시각 정보와 합쳐 "무엇을 어떤 순서로 할지" 의도를 만든다. VLA 의 몸집 대부분을 차지</td>
+  <td>전두엽(생각·판단)</td>
+  <td>Llama, PaliGemma, Qwen-VL</td>
+</tr>
+<tr>
+  <td><strong>③ 액션 헤드</strong><br>(Action Head / Expert)</td>
+  <td>고수준 의도를 실제 모터가 실행할 "관절 각도·그리퍼" 같은 저수준 숫자로 변환</td>
+  <td>소뇌(움직임 실행)</td>
+  <td>토큰 예측 / diffusion / flow matching</td>
+</tr>
+</tbody>
+</table>
+
+<p class="analogy"><b>핵심</b> — ②번 언어모델 백본이 보통 가장 크고(수 B 파라미터), 인터넷 규모로 사전학습되어 "일반 지식"을 담고 있습니다. ③번 액션 헤드는 상대적으로 작고, "이 로봇의 몸"에 특화된 부분입니다.</p>
+
+<!-- ═══════════════════════════════════ -->
+<h2><span class="part-label">3부 · 용어</span><br>꼭 알아야 할 용어 — 기능 중심으로</h2>
+
+<p>회의에서 나왔던 질문(VRAM·LoRA·RL vs VLA 등)을 "그래서 이게 뭐고 왜 중요한가" 중심으로 정리했습니다.</p>
+
+<div class="terms">
+  <div class="term">
+    <div class="name">VRAM (GPU 메모리)</div>
+    <div class="def">그래픽카드 안의 작업 공간. 모델의 숫자(가중치)와 계산 중간값이 전부 여기 올라가야 함.</div>
+    <div class="fn"><b>왜 중요</b> — 모델이 크거나 한 번에 많이 처리하면 VRAM이 모자라 학습이 멈춤. 우리 PC는 <b>24GB</b>.</div>
+  </div>
+  <div class="term">
+    <div class="name">사전학습 vs 미세조정</div>
+    <div class="def">사전학습(pretraining)= 대규모 데이터로 "기본기"를 만든 무거운 과정(대기업이 함). 미세조정(fine-tune)= 그 모델을 우리 로봇·작업에 맞게 살짝 조정(우리가 함).</div>
+    <div class="fn"><b>왜 중요</b> — 우리는 처음부터 학습할 필요 없이, 공개된 사전학습 모델을 받아 <b>fine-tune</b>만 하면 됨.</div>
+  </div>
+  <div class="term">
+    <div class="name">LoRA</div>
+    <div class="def">모델 전체를 다시 학습하지 않고, 각 부품에 "작은 보조 모듈"만 붙여 그것만 학습하는 기법.</div>
+    <div class="fn"><b>왜 중요</b> — VRAM을 크게 아껴서, <b>24GB 같은 소비자 GPU에서도 fine-tune 가능</b>. 성능은 전체 학습과 거의 같음.</div>
+  </div>
+  <div class="term">
+    <div class="name">RL vs VLA(모방학습)</div>
+    <div class="def">RL(강화학습)= 로봇이 직접 시행착오하며 보상으로 배움(느리고 위험). VLA= 사람 시연을 보고 따라하는 <b>모방학습</b>이 기본(빠르고 안전).</div>
+    <div class="fn"><b>왜 중요</b> — 우리의 텔레옵 시연 데이터가 곧 VLA 학습 재료. RL은 나중에 미세 최적화에 보조로.</div>
+  </div>
+  <div class="term">
+    <div class="name">Action 표현 ①: 이산 토큰</div>
+    <div class="def">연속적인 관절 값을 칸으로 나눠(예: 0~10도=토큰0), 언어모델이 "다음 토큰" 맞히듯 행동을 예측.</div>
+    <div class="fn">빠르고 단순(OpenVLA). 단, 미세한 움직임은 다소 거칠 수 있음.</div>
+  </div>
+  <div class="term">
+    <div class="name">Action 표현 ②: Diffusion</div>
+    <div class="def">무작위 노이즈에서 시작해 여러 단계로 다듬어 매끄러운 행동을 만들어냄.</div>
+    <div class="fn">정밀하고 부드러움(GR00T 액션 헤드). 단계가 많아 상대적으로 느림.</div>
+  </div>
+  <div class="term">
+    <div class="name">Action 표현 ③: Flow matching</div>
+    <div class="def">Diffusion과 비슷하지만 1~3단계로 확 줄여, 정밀함과 속도를 동시에.</div>
+    <div class="fn">최근 주목(π0). 50Hz 실시간 제어 가능.</div>
+  </div>
+  <div class="term">
+    <div class="name">EEF · 텔레옵 · 시연</div>
+    <div class="def">EEF= 로봇 팔 끝의 손/그리퍼(위치 XYZ+회전). 텔레옵= 사람이 VR·장갑으로 로봇을 원격 조종. 시연(demo)= 그렇게 모은 "올바른 행동" 기록.</div>
+    <div class="fn"><b>우리</b>의 Manus 장갑·Quest3가 바로 텔레옵 → 시연 데이터 수집 장치.</div>
+  </div>
+  <div class="term">
+    <div class="name">Embodiment (로봇 몸의 종류)</div>
+    <div class="def">로봇마다 팔 길이·관절 수·그리퍼가 다름. 여러 로봇 데이터를 한 모델로 학습하면 일반화가 좋아짐.</div>
+    <div class="fn">Open X-Embodiment = 22개 로봇 데이터 모음. 한 모델이 여러 몸에 적응.</div>
+  </div>
+  <div class="term">
+    <div class="name">Action chunk · 제어 주파수</div>
+    <div class="def">한 번 추론에 미래 여러 스텝(chunk)을 한꺼번에 출력. 제어 주파수= 초당 몇 번 새 명령을 내는가(예: 50Hz).</div>
+    <div class="fn">chunk가 길면 부드럽고 효율적. 주파수가 높을수록 반응이 민첩.</div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════ -->
+<h2><span class="part-label">4부 · 미세조정</span><br>Fine-tune 하면 어디가 바뀌나 + 우리 24GB</h2>
+
+<p>2부의 3개 부품 중 <strong>어디의 가중치를 바꾸느냐</strong>가 곧 fine-tune 방식의 차이이고, 그게 VRAM 부담을 결정합니다.</p>
+
+<table>
+<thead><tr><th>방식</th><th>바뀌는 부품</th><th>VRAM 부담</th><th>성능</th><th>우리 24GB</th></tr></thead>
+<tbody>
+<tr>
+  <td><strong>Full fine-tune</strong></td>
+  <td>① + ② + ③ 모든 가중치</td>
+  <td class="bad">매우 큼</td>
+  <td>최고</td>
+  <td class="bad">✗ 대부분 불가</td>
+</tr>
+<tr>
+  <td><strong>LoRA</strong></td>
+  <td>각 부품에 붙인 작은 보조 모듈만<br>(원본은 얼려둠)</td>
+  <td class="warn">중간 (원본의 1/3)</td>
+  <td>full과 거의 동일</td>
+  <td class="ok">✓ 대체로 가능</td>
+</tr>
+<tr>
+  <td><strong>Action-head-only</strong></td>
+  <td>③ 액션 헤드만<br>(①② 사전학습 그대로)</td>
+  <td class="ok">가장 작음</td>
+  <td>작업 한정 양호</td>
+  <td class="ok">✓ 여유</td>
+</tr>
+</tbody>
+</table>
+
+<div class="why">
+<strong>우리에게 주는 결론</strong> — 24GB 에서는 <strong>처음부터 학습(full pretraining)은 불가능</strong>하지만, 공개된 사전학습 모델에 <strong>LoRA</strong> 또는 <strong>액션 헤드만</strong> fine-tune 하는 방식이면 충분히 실습 가능합니다. 그래서 "오픈소스로 가중치가 공개됐는가"가 모델 선택의 핵심 기준이 됩니다.
+</div>
+
+<!-- ═══════════════════════════════════ -->
+<h2><span class="part-label">5부 · 모델</span><br>대표 4개 모델 집중 분석</h2>
+
+<p>각 모델을 <strong>구성단위 / 입력·출력 / fine-tune 단위 / 오픈소스 여부 / 24GB 실습</strong> 관점에서 봅니다. 공개 여부 태그: <span class="tag open">오픈</span> 코드+가중치 공개 · <span class="tag partial">부분</span> 일부 제약 · <span class="tag api">API</span> 비공개·클라우드 전용.</p>
+
+<!-- OpenVLA -->
+<div class="model">
+  <h3>① OpenVLA <span class="tag open">오픈</span></h3>
+  <div class="sub">Stanford/Berkeley · 2024-06 · 가장 많이 인용되는 오픈 VLA 기준점</div>
+  <table>
+    <tr><td>구성단위</td><td>① DINOv2+SigLIP 비전 인코더 · ② Llama-2 7B · ③ 토큰 예측 방식 액션(언어모델이 직접 출력)</td></tr>
+    <tr><td>입력 → 출력</td><td>224×224 이미지 1장 + 명령 → 7-DoF EEF 델타(x,y,z,회전,그리퍼), 1스텝씩</td></tr>
+    <tr><td>fine-tune 단위</td><td>LoRA로 <strong>전체의 1.4%만</strong> 학습해도 충분. action-head/full 도 가능</td></tr>
+    <tr><td>오픈소스</td><td>코드 MIT · 가중치 공개(Llama 라이선스) · OXE 호환 데이터로 <strong>직접 training도 (소규모) 가능</strong></td></tr>
+    <tr><td>24GB 실습</td><td><span class="ok">inference ✓ (약 14GB)</span> · <span class="ok">LoRA fine-tune ✓</span> · <span class="bad">full ✗</span></td></tr>
+  </table>
+  <p style="font-size:0.9em;margin:6px 0 0;">→ <strong>가장 무난한 실습 출발점.</strong> 문서·예제 풍부, Franka/DROID 지원.</p>
+</div>
+
+<!-- pi0 -->
+<div class="model">
+  <h3>② π0 / π0.5 (OpenPI) <span class="tag open">오픈</span></h3>
+  <div class="sub">Physical Intelligence · 논문 2024 후반 / OpenPI 공개 2025-02 · flow matching 의 대표</div>
+  <table>
+    <tr><td>구성단위</td><td>① PaliGemma(구글 VLM) 3B + ② 그 안의 언어부 · ③ 별도 Action Expert 300M (flow matching)</td></tr>
+    <tr><td>입력 → 출력</td><td>이미지 + 명령 + 관절상태(proprioception) → 미래 50스텝 action chunk, 50Hz</td></tr>
+    <tr><td>fine-tune 단위</td><td>LoRA·full 지원. 권장 데이터 <strong>1~20시간</strong>으로 적음(효율적)</td></tr>
+    <tr><td>오픈소스</td><td>코드·가중치 Apache 2.0 공개. 단 <strong>사전학습 데이터(1만 시간)는 비공개</strong> → 처음부터 직접 training은 불가, fine-tune만</td></tr>
+    <tr><td>24GB 실습</td><td><span class="ok">inference ✓</span> · <span class="warn">LoRA ⚠ 경계(약 22.5GB)</span> · <span class="bad">full ✗</span></td></tr>
+  </table>
+  <p style="font-size:0.9em;margin:6px 0 0;">→ <strong>정밀·부드러운 제어가 강점.</strong> 설치가 OpenVLA보다 약간 복잡.</p>
+</div>
+
+<!-- Gemini Robotics -->
+<div class="model">
+  <h3>③ Gemini Robotics <span class="tag api">API</span></h3>
+  <div class="sub">Google DeepMind · 2025-03 발표 (Gemini Robotics / Robotics-ER) · 추론 능력 강조</div>
+  <table>
+    <tr><td>구성단위</td><td>Gemini 기반 VLM(상세 비공개) + Embodied Reasoning. "언어로 상황을 추론한 뒤 계획"하는 방식</td></tr>
+    <tr><td>입력 → 출력</td><td>이미지·영상·명령(+오디오) → 좌표·궤적·다단계 계획 등 고수준 출력(실제 모터 제어는 별도 결합)</td></tr>
+    <tr><td>fine-tune 단위</td><td><span class="bad">로컬 fine-tune 불가</span> (클라우드 API 전용)</td></tr>
+    <tr><td>오픈소스</td><td><span class="bad">가중치·데이터 비공개.</span> 일부 SDK만 공개. <strong>Gemini API 경유로만 사용</strong></td></tr>
+    <tr><td>24GB 실습</td><td><span class="warn">로컬 실행 ✗</span> · API 호출 데모만 가능(인터넷+키 필요)</td></tr>
+  </table>
+  <p style="font-size:0.9em;margin:6px 0 0;">→ <strong>"가장 똑똑한 추론"이지만 우리 PC에서 돌릴 수 없음.</strong> 비교·API 데모 용도로 다룸.</p>
+</div>
+
+<!-- GR00T -->
+<div class="model">
+  <h3>④ NVIDIA GR00T (N1.5 / 이후 버전) <span class="tag open">오픈</span></h3>
+  <div class="sub">NVIDIA · N1 2025-03, N1.5 2025-06 · humanoid 지향 + Isaac Lab 공식 통합</div>
+  <table>
+    <tr><td>구성단위</td><td>① SigLIP2 비전 · ② Eagle/Qwen 계열 VLM ~2B · ③ Diffusion Transformer 액션 헤드. 총 ~3B</td></tr>
+    <tr><td>입력 → 출력</td><td>이미지 + 명령 + 관절상태 → 16스텝 action chunk(상대 EEF), ~50Hz</td></tr>
+    <tr><td>fine-tune 단위</td><td>LoRA·action-head·full 지원(LeRobot 통합). 여러 로봇 embodiment 프리셋 제공</td></tr>
+    <tr><td>오픈소스</td><td>코드·가중치 공개(N1.5 비상업, 이후 버전 Apache 2.0). 데이터 부분 공개 → 직접 training은 제한적</td></tr>
+    <tr><td>24GB 실습</td><td><span class="ok">inference ✓ (약 6~8GB)</span> · <span class="warn">LoRA ⚠ 경계(약 25GB↑)</span> · <span class="bad">full ✗</span></td></tr>
+  </table>
+  <p style="font-size:0.9em;margin:6px 0 0;">→ <strong>우리가 가진 Isaac Lab 과 가장 잘 맞음.</strong> 시뮬에서 Franka가 움직이는 걸 눈으로 보기 좋음.</p>
+</div>
+
+<h3>4개 모델 비교 매트릭스</h3>
+<table>
+<thead><tr><th>구분</th><th>OpenVLA</th><th>π0/π0.5</th><th>Gemini Robotics</th><th>GR00T N1.5+</th></tr></thead>
+<tbody>
+<tr><td>액션 방식</td><td>이산 토큰</td><td>flow matching</td><td>고수준 계획</td><td>diffusion</td></tr>
+<tr><td>코드·가중치</td><td class="center ok">공개</td><td class="center ok">공개</td><td class="center bad">비공개(API)</td><td class="center ok">공개</td></tr>
+<tr><td>데이터 공개<br>(직접 training)</td><td class="center warn">부분(가능)</td><td class="center bad">비공개(불가)</td><td class="center bad">비공개(불가)</td><td class="center warn">부분(제한)</td></tr>
+<tr><td>24GB inference</td><td class="center ok">✓</td><td class="center ok">✓</td><td class="center bad">✗(API)</td><td class="center ok">✓</td></tr>
+<tr><td>24GB LoRA</td><td class="center ok">✓</td><td class="center warn">⚠ 경계</td><td class="center bad">✗</td><td class="center warn">⚠ 경계</td></tr>
+<tr><td>Isaac Lab</td><td class="center warn">통합 시도중</td><td class="center warn">부분</td><td class="center">—</td><td class="center ok">공식</td></tr>
+<tr><td>입문 난이도</td><td class="center ok">쉬움</td><td class="center warn">중간</td><td class="center ok">쉬움(API)</td><td class="center warn">중간</td></tr>
+</tbody>
+</table>
+
+<!-- ═══════════════════════════════════ -->
+<h2><span class="part-label">6부 · 로봇</span><br>왜 Franka 로 시작하는가</h2>
+
+<p>회의에서 나온 "Franka 예제가 많은가?"에 대한 답 — <strong>매우 많습니다. 사실상 표준입니다.</strong></p>
+<ul>
+  <li><strong>DROID 데이터셋</strong> = 100% Franka Panda (18개 팔, 76,000 궤적, 350시간). 13개 기관 공동 수집.</li>
+  <li><strong>Open X-Embodiment</strong> = 전체의 85%가 단 4개 로봇(Franka 포함). Franka는 그중 단일 최대.</li>
+  <li><strong>OpenVLA·π0</strong> 모두 Franka/DROID 사전학습 체크포인트 제공. <strong>GR00T</strong>는 Isaac Lab 에서 Franka pick&place 예제.</li>
+  <li>비전문가 진입용: Panda-Gym, Franka-Kitchen 등 쉬운 시뮬 환경 다수.</li>
+</ul>
+<div class="why">→ <strong>Franka 는 "데이터·예제가 가장 많아 막힐 일이 적은" 출발점.</strong> 우리 Isaac Lab 에도 Franka 환경이 기본 포함되어 있어 시뮬 실습에 적합.</div>
+
+<!-- ═══════════════════════════════════ -->
+<h2><span class="part-label">7부 · 확장</span><br>VTLA — 촉각을 더한 VLA (우리 Manus 장갑과 연결)</h2>
+
+<p><strong>VTLA = Vision-<u>Tactile</u>-Language-Action</strong> — 시각·언어·행동에 <strong>촉각(Tactile)</strong>을 더한 확장형. 조립·삽입·집기처럼 손이 가려지고(occlusion) 힘 조절이 중요한 "접촉이 많은 작업"에서 시각만 쓰는 VLA보다 크게 우수합니다.</p>
+<ul>
+  <li>연구 사례: VTLA(2025-05, 삽입 작업 90%+ 성공), OmniVTLA(2025-08).</li>
+  <li><strong>우리와 직결</strong>: <strong>MANUS 장갑 + OSMO 촉각 센서</strong> 결합 실험에서 성공률 <strong>56%(시각만) → 72%</strong>로 향상된 사례가 보고됨.</li>
+</ul>
+<div class="why">→ 우리는 이미 <strong>Manus 장갑</strong>으로 손 자세·손가락 데이터를 모읍니다. 여기에 힘/촉각 정보를 더하면 VLA를 <strong>VTLA로 확장</strong>할 수 있는 자연스러운 길이 있습니다. (1주차 범위는 아니고, 중기 확장 방향으로 기억해 둘 포인트.)</div>
+
+<!-- ═══════════════════════════════════ -->
+<h2><span class="part-label">8부 · 실습</span><br>우리 PC(24GB)에서 할 수 있는 기초 실습</h2>
+
+<p>"읽기"만으로는 추상적이라, 손으로 한 번 돌려보는 게 이해에 가장 빠릅니다. 24GB 에서 현실적인 후보를 비교했습니다.</p>
+
+<table>
+<thead><tr><th>실습</th><th>무엇을 보나</th><th>설치 난이도</th><th>24GB</th><th>대략 시간</th></tr></thead>
+<tbody>
+<tr><td><strong>OpenVLA inference</strong></td><td>이미지+명령 → action 숫자 출력</td><td class="ok">쉬움</td><td class="center ok">✓ 여유</td><td>설치+실행 ~30분</td></tr>
+<tr><td><strong>Isaac Lab + GR00T 시뮬</strong></td><td>Franka가 명령대로 움직이는 <strong>영상</strong></td><td class="warn">중간</td><td class="center ok">✓(추론)</td><td>~1시간</td></tr>
+<tr><td>LIBERO 벤치마크</td><td>여러 task 성공률 + MuJoCo 영상</td><td class="warn">중간</td><td class="center ok">✓</td><td>~40분</td></tr>
+<tr><td>(참고) SmolVLA / LeRobot</td><td>가장 가벼운 입문, Colab 가능</td><td class="ok">매우 쉬움</td><td class="center ok">✓ 여유</td><td>~30분</td></tr>
+</tbody>
+</table>
+
+<h3>추천 1주차 실습 — 2단계</h3>
+
+<div class="step">
+  <p><span class="num">A</span><strong>OpenVLA로 "VLA가 행동을 출력하는 것" 확인</strong> (눈으로 숫자 확인, 가장 안전)</p>
+  <ol>
+    <li>가상환경 + 의존성 설치 (HuggingFace Transformers 기반)</li>
+    <li><code>openvla/openvla-7b</code> 가중치 자동 다운로드 (약 14GB, 24GB에 적재)</li>
+    <li>샘플 이미지 + "Pick up the cube" 명령 입력 → 7-DoF action 값이 출력되는지 확인</li>
+    <li>명령을 바꿔가며 출력이 달라지는지 관찰 → "입력→행동" 직관 체득</li>
+  </ol>
+</div>
+
+<div class="step">
+  <p><span class="num">B</span><strong>Isaac Lab + GR00T로 "로봇이 움직이는 것" 보기</strong> (우리 인프라 활용, 시각적)</p>
+  <ol>
+    <li><code>~/IsaacLab</code> + <code>NVIDIA/Isaac-GR00T</code> 준비</li>
+    <li>GR00T 사전학습 모델 다운로드 → DROID 샘플로 inference (action 예측)</li>
+    <li>Isaac Lab의 Franka pick&place 환경에 예측 action 입력</li>
+    <li>시뮬레이션 화면에서 <strong>Franka 팔이 명령대로 집고 놓는 영상</strong> 확인</li>
+  </ol>
+</div>
+
+<div class="why">
+<strong>실습 목표</strong> — (A)로 "VLA는 정말 입력을 받아 행동 숫자를 뱉는다"를, (B)로 "그 숫자가 실제(시뮬) 로봇을 움직인다"를 눈으로 확인. 이 두 가지를 경험하면 <strong>"VLA가 막연하지 않고 손에 잡힌다"</strong>는 감각이 생깁니다. fine-tune(우리 데이터 추가 학습)은 그 다음 주차로.
+<br><br><strong>제안</strong> — 회의 전에 제가 A안(OpenVLA inference)을 우리 PC에 실제로 설치·실행해 두고, 캡처/로그를 함께 준비할 수 있습니다. 그러면 회의에서 "이미 돌아가는 것"을 보여줄 수 있습니다.
+</div>
+
+<!-- ═══════════════════════════════════ -->
+<h2><span class="part-label">참고</span><br>영상 · 링크</h2>
+
+<ul>
+  <li>📺 추천 영상(조직장 공유): <a href="https://www.youtube.com/watch?v=b3CUKePTygM">GR00T vs Gemini Robotics vs π0 아키텍처 비교</a> — 세 모델의 "설계 철학" 차이를 비유로 설명. (28분39초 지점이 핵심 비교 구간)</li>
+  <li>OpenVLA: <a href="https://github.com/openvla/openvla">GitHub</a> · <a href="https://huggingface.co/openvla/openvla-7b">가중치</a> · <a href="https://arxiv.org/abs/2406.09246">논문</a></li>
+  <li>π0 / OpenPI: <a href="https://github.com/Physical-Intelligence/openpi">GitHub</a> · <a href="https://www.physicalintelligence.company/blog/openpi">블로그</a></li>
+  <li>Gemini Robotics: <a href="https://deepmind.google/models/gemini-robotics/">DeepMind 소개</a></li>
+  <li>NVIDIA GR00T: <a href="https://github.com/NVIDIA/Isaac-GR00T">GitHub</a> · <a href="https://huggingface.co/nvidia/GR00T-N1.5-3B">가중치(N1.5)</a></li>
+  <li>데이터셋: <a href="https://droid-dataset.github.io/">DROID(Franka)</a> · <a href="https://robotics-transformer-x.github.io/">Open X-Embodiment</a></li>
+  <li>VTLA: <a href="https://arxiv.org/abs/2505.09577">VTLA 논문</a> · <a href="https://www.manus-meta.com/use-cases/combining-manus-kinematics-and-osmo-tactile-sensing-for-contact-rich-robot-learning">MANUS+OSMO 촉각 사례</a></li>
+  <li>입문 실습: <a href="https://github.com/huggingface/lerobot">LeRobot</a> · <a href="https://huggingface.co/docs/lerobot/en/smolvla">SmolVLA 문서</a></li>
+</ul>
+
+<!-- ───────────── 부록 ───────────── -->
+<div class="appendix-divider">↓ 참고용 ↓</div>
+
+<h3>회의 후 다음 단계</h3>
+<p style="font-size:0.93em;color:#555;">회의에서 (1) 어떤 모델로 실습할지 (2) 기초 실습 A/B 중 무엇을 먼저 할지 정하면 → <code>vla_ws</code> 신설(다른 ws 와 동일 컨벤션, <code>github.com/JunYungYI/vla_ws</code>) → 실습 환경 구축 → 우리 텔레옵 데이터(Manus/Quest3) 수집 → fine-tune 으로 이어집니다.</p>
+
+<div class="footnote">
+파일: <code>~/meta/reports/2026-05-28_vla_4models_deepdive.html</code> · 작성 2026-05-28 · 0주차 자료(<code>2026-05-28_vla_week0_intro.html</code>)의 후속 · 출처는 위 "참고" 링크 + Claude 자율 리서치 3건(작동원리/4모델/실습). 모델 버전·날짜는 2026-05 기준이며 일부 최신 버전(GR00T N1.7 등)은 변동 가능.
+</div>
+
+</body>
+</html>
